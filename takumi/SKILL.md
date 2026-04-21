@@ -4,8 +4,8 @@ description: "Takumi — Rust rendering engine that converts JSX, HTML, and node
 metadata:
   author: kravetsone
   version: "1.0.15"
-  upstream: kane50613/takumi
-  source: https://github.com/kane50613/takumi
+  source: https://github.com/kravetsone/skills/tree/main/takumi
+  upstream: https://github.com/kane50613/takumi
 ---
 
 # Takumi
