@@ -1,32 +1,50 @@
 # skills
 
-Collection of agent skills, installable with [`npx skills`](https://github.com/vercel-labs/skills).
+Collection of [agent skills](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) maintained by [@kravetsone](https://github.com/kravetsone), installable with [`npx skills`](https://github.com/vercel-labs/skills) — the open agent-skills tool that fetches `SKILL.md` files from any GitHub repo and drops them into Claude Code, Cursor, OpenCode, Codex CLI, or any supported coding agent.
 
 ## Install
 
-All skills in this repo:
+### All skills in this repo
 
 ```bash
 npx skills add kravetsone/skills
 ```
 
-Browse without installing:
+```bash
+bunx skills add kravetsone/skills
+```
+
+### Browse without installing
 
 ```bash
 npx skills add kravetsone/skills --list
 ```
 
-A specific skill (recommended for large multi-file skills):
+```bash
+bunx skills add kravetsone/skills --list
+```
+
+### Install a specific skill (recommended for large multi-file skills)
 
 ```bash
 npx skills add kravetsone/skills --skill takumi
 ```
 
-Target a specific agent:
+```bash
+bunx skills add kravetsone/skills --skill takumi
+```
+
+### Target a specific agent
 
 ```bash
 npx skills add kravetsone/skills --skill takumi -a claude-code
 ```
+
+```bash
+bunx skills add kravetsone/skills --skill takumi -a claude-code
+```
+
+Supported agent targets include `claude-code`, `cursor`, `opencode`, `codex`, `copilot`, and others — see [`vercel-labs/skills`](https://github.com/vercel-labs/skills) for the full list.
 
 ## Skills
 
@@ -43,7 +61,7 @@ skills/
 ├── README.md
 └── <skill-name>/
     ├── SKILL.md          # required — entry point with YAML frontmatter
-    ├── metadata.json     # optional — version, org, abstract, references
+    ├── metadata.json     # optional — version, author, abstract, references
     └── references/       # optional — split large topics into focused files
         ├── installation.md
         ├── <topic>.md
@@ -58,9 +76,10 @@ skills/
    name: <skill-name>            # lowercase, hyphens only, matches directory
    description: "..."            # what it does + when to invoke + trigger keywords
    metadata:
-     author: <upstream>
+     author: <skill-maintainer>
      version: "<upstream-version>"
-     source: <canonical URL>
+     source: <URL to the skill in this repo>
+     upstream: <URL to the library the skill documents, if applicable>
    ---
    ```
 
@@ -68,14 +87,16 @@ skills/
 
 3. **Split references.** For anything over ~300 lines, break into `references/<topic>.md` and link from `SKILL.md`. Keep `SKILL.md` itself focused on critical concepts and a navigation table.
 
-4. **Ship a `metadata.json` for machine consumers.** Mirrors the frontmatter but is easy to grep across repos. Pattern:
+4. **Ship a `metadata.json` for machine consumers.** Mirrors the frontmatter but is easy to grep across repos:
    ```json
    {
      "version": "<upstream-version>",
-     "organization": "<upstream-org>",
+     "author": "<skill-maintainer>",
+     "source": "<URL to the skill in this repo>",
+     "upstream": "<URL to the documented library>",
      "date": "<DD MMM YYYY>",
      "abstract": "<one-paragraph hook>",
-     "references": ["<llms.txt or docs root>", "..."]
+     "references": ["<llms-full.txt>", "<docs root>", "..."]
    }
    ```
 
@@ -83,4 +104,4 @@ skills/
 
 6. **Pull the richest source.** Prefer `llms-full.txt` over `llms.txt` when it exists — it usually has full examples and API details instead of an index.
 
-See [Agent Skills docs](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) for Claude Code–specific conventions.
+See the [Agent Skills docs](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) for Claude Code–specific conventions.
