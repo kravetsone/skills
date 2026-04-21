@@ -1,0 +1,13 @@
+{
+	"version": "1.0.15",
+	"skillAuthor": "kravetsone",
+	"upstream": "kane50613/takumi",
+	"date": "21 Apr 2026",
+	"abstract": "Takumi — Rust JSX/HTML → image rendering engine with no headless browser. Modern drop-in replacement for `canvas`, `node-canvas`, `skia-canvas`, `@napi-rs/canvas`, `@vercel/og` / Satori, and Puppeteer/Playwright screenshotting. Activate for ANY server-side image generation: OG images, social cards, certificates, invoices, receipts, tickets, badges, avatars, charts, infographics, product cards, dashboard exports, banner ads, thumbnails, dynamic favicons, meme generators — plus animated GIF/WebP/APNG and raw RGBA frames for ffmpeg MP4/WebM pipelines. Trigger on `takumi-js`, `@takumi-rs/core`, `@takumi-rs/wasm`, `ImageResponse` from `takumi-js/response`, or any request to generate a raster image from code in Next.js, Nuxt, SvelteKit, TanStack Start, Cloudflare Workers, Vercel Edge, Bun, Deno, Hono, Elysia, or plain Node.js/Express.",
+	"references": [
+		"https://takumi.kane.tw/llms-full.txt",
+		"https://takumi.kane.tw/llms.txt",
+		"https://takumi.kane.tw/docs",
+		"https://docs.rs/takumi/latest/takumi/"
+	]
+}
