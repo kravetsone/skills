@@ -304,6 +304,73 @@ options: {
 
 You can add hooks to built-ins without replacing their handler.
 
+## The `buildFeature()` helper — reusable feature factories
+
+When a hook/action pattern recurs across resources, package it as a **feature** using `buildFeature()` from `adminjs`. This is the idiomatic way every official `@adminjs/*` feature is built (see [official-features](official-features.md)).
+
+```typescript
+import { buildFeature, type FeatureType } from "adminjs";
+
+export function auditTrailFeature(tableName: string): FeatureType {
+    return buildFeature({
+        actions: {
+            new: {
+                before: [stampTimestamps],
+                after:  [writeAuditRow(tableName, "created")],
+            },
+            edit: {
+                before: [stampTimestamps],
+                after:  [writeAuditRow(tableName, "updated")],
+            },
+            delete: {
+                after: [writeAuditRow(tableName, "deleted")],
+            },
+        },
+        properties: {
+            createdAt: { isDisabled: true },
+            updatedAt: { isDisabled: true },
+        },
+    });
+}
+```
+
+Then attach it like any other feature:
+
+```typescript
+{
+    resource: { table: articlesTable, db },
+    options: { /* ... */ },
+    features: [
+        auditTrailFeature("articles"),
+        uploadFileFeature({ /* ... */ }),
+    ],
+},
+```
+
+### When to reach for `buildFeature`
+
+- **Two or more resources** need the same hook/action pattern. A feature removes the copy-paste.
+- You're writing a library for others to consume — features are the package-boundary API.
+- You want `properties` overrides + `actions` overrides bundled together (feature = resource-option delta).
+
+For a one-off hook on a single resource, inline the hook in `actions.<action>.after` directly — don't over-engineer.
+
+### What `buildFeature` accepts
+
+```typescript
+type BuildFeature = (opts: {
+    properties?: Record<string, PropertyOptions>,
+    actions?: Record<string, ActionOptions>,
+    navigation?: NavigationOptions | null,
+    listProperties?: string[],
+    showProperties?: string[],
+    editProperties?: string[],
+    filterProperties?: string[],
+}) => FeatureType;
+```
+
+AdminJS merges the feature's options into the resource's options at runtime. Features registered later in the array win when there's a conflict on the same key. **Hooks accumulate** (all `before` / `after` arrays concatenate) — they don't replace each other.
+
 ## Recipes
 
 ### Soft delete

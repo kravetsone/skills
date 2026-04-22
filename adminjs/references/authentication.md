@@ -190,9 +190,93 @@ Hide an entire resource from viewers:
 
 `navigation: null` hides from the sidebar but the resource is still accessible via URL — add `isAccessible` on actions for true enforcement.
 
+## OAuth / OIDC via Keycloak (`@gugupy/adminjs-keycloak`)
+
+For Keycloak / OIDC / most SSO setups, use `@gugupy/adminjs-keycloak`. It implements the OAuth code flow end-to-end and returns an AdminJS `CurrentAdmin` ready for JWT signing.
+
+```bash
+bun add @gugupy/adminjs-keycloak
+```
+
+**Upstream caveat:** the package README states it's **tested with `@adminjs/express` only**. Under `adminjs-elysia`, the login endpoint integration is different — the package's "paste this Express middleware" snippet does not apply. The **auth provider itself** (`KeycloakAuthProvider` — exchanges code for tokens, fetches userinfo, builds `CurrentAdmin`) is framework-agnostic and works fine. What you need to write yourself is the Elysia route that captures the `?code=...` callback from Keycloak and POSTs it into AdminJS's login endpoint.
+
+### Plug-in provider
+
+```typescript
+import { KeycloakAuthProvider } from "@gugupy/adminjs-keycloak";
+
+const provider = new KeycloakAuthProvider({
+    componentLoader,
+    config: {
+        realm: config.KEYCLOAK_REALM,
+        authServerUrl: config.KEYCLOAK_URL,
+        clientId: config.KEYCLOAK_CLIENT_ID,
+        clientSecret: config.KEYCLOAK_CLIENT_SECRET,
+        redirectUri: `${config.API_URL}/admin/login`,
+    },
+});
+
+buildAuthenticatedRouter(admin, {
+    provider,
+    cookiePassword: config.ADMIN_COOKIE_SECRET,
+    cookieName: "adminjs",
+}, {});
+```
+
+### Elysia callback bridge
+
+Keycloak redirects to `/admin/login?code=<authCode>` as a **GET**, but AdminJS's login handler listens for **POST**. Add a small Elysia route that catches the GET, extracts the code, and submits it as a form POST to AdminJS:
+
+```typescript
+import Elysia from "elysia";
+
+export const keycloakCallback = new Elysia()
+    .get("/admin/login", ({ query, set }) => {
+        if (!query.code) return; // let AdminJS render the normal login page
+        set.headers["Content-Type"] = "text/html; charset=utf-8";
+        return `<!DOCTYPE html>
+<html><body>
+  <p>Signing you in…</p>
+  <form id="f" method="POST" action="/admin/login">
+    <input type="hidden" name="code" value="${query.code}" />
+    <input type="hidden" name="redirectUri" value="${config.API_URL}/admin/login" />
+  </form>
+  <script>document.getElementById('f').submit();</script>
+</body></html>`;
+    });
+
+// Mount BEFORE the admin router
+new Elysia()
+    .use(keycloakCallback)
+    .use(adminRouter);
+```
+
+Why the HTML form trick? You could redirect with a 307 and preserve the GET method, but POSTing gives you a clean same-origin request through which AdminJS's login handler can set cookies. This is the pattern the upstream Express README demonstrates.
+
+### Example logout
+
+Keycloak sessions outlive AdminJS cookies. To fully sign out, add a logout handler that clears the local cookie and redirects to Keycloak's end-session endpoint:
+
+```typescript
+new Elysia()
+    .get("/admin/logout", ({ cookie, set }) => {
+        cookie.adminjs?.remove();
+        set.redirect = `${config.KEYCLOAK_URL}/realms/${config.KEYCLOAK_REALM}/protocol/openid-connect/logout?redirect_uri=${encodeURIComponent(config.API_URL + "/admin")}`;
+    });
+```
+
+### Role mapping from Keycloak realm roles
+
+`KeycloakAuthProvider` populates `currentAdmin.roles` from the token's `realm_access.roles` array. Gate actions by realm role:
+
+```typescript
+isAccessible: ({ currentAdmin }) =>
+    (currentAdmin?.roles as string[] | undefined)?.includes("admin") ?? false,
+```
+
 ## Custom `BaseAuthProvider`
 
-For OAuth / SSO / magic links, subclass `BaseAuthProvider<Context>`:
+For OAuth / SSO / magic links not covered by Keycloak or Firebase, subclass `BaseAuthProvider<Context>`:
 
 ```typescript
 import { BaseAuthProvider, type LoginHandlerOptions } from "adminjs";

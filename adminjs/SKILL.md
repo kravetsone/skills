@@ -188,12 +188,7 @@ Read these **once** before writing any AdminJS code. Each is a gotcha that will 
 
     See [s3-uploads](references/s3-uploads.md) → "Multiple upload features per resource".
 
-12. **`admin.initialize()` + `admin.watch()` compile custom components into `.adminjs/` lazily.** In dev that's OK — watch re-bundles on change. In production:
-    - Commit the `.adminjs/` folder OR run `bun run src/admin/index.ts` once during the image build to pre-generate it, OR
-    - Accept a cold-start delay on first request.
-    - `.adminjs/` must be writable by the process — read-only filesystems (some container setups) break the first request.
-
-    See [setup-and-bundling](references/setup-and-bundling.md) → "Bundling in production".
+12. **Production MUST pre-bundle with `@adminjs/bundler` + `ADMIN_JS_SKIP_BUNDLE="true"` (STRING, not boolean).** Default behavior — bundling on server startup — delays first request 1–3s, burns 200–500 MB RAM (can OOM small containers), writes to `.adminjs/` (breaks read-only FS). The official `@adminjs/bundler` runs once in CI, outputs to a static folder, and the server serves it with zero runtime bundling. **The skip env var is a string `"true"`** — AdminJS does `=== "true"`; a boolean `true` or the string `"True"` is silently ignored. See [production-bundling](references/production-bundling.md) and [templates/bundle.ts](templates/bundle.ts).
 
 13. **Never call `require("@adminjs/upload")` from TypeScript without a guard.** The user's reference code does `require("@adminjs/upload").LocalProvider` to load the local-dev provider lazily — this works under Bun but throws under strict ESM Node setups. Prefer a top-level dynamic `import()` or conditional inside an `async` function. See [s3-uploads](references/s3-uploads.md) → "Dev fallback pattern".
 
@@ -228,7 +223,10 @@ Use them as `properties: { id: READONLY, internalNotes: HIDDEN, termsAcceptedAt:
 | Custom actions | `actionType`, handler signature, `guard`, `isAccessible`, before/after hooks, action from within a custom component (fetch to `/admin/api/resources/:r/records/:id/:action`) | [custom-actions](references/custom-actions.md) |
 | Custom components | `ComponentLoader`, path resolution, `@adminjs/design-system` primitives, dashboard redirect, action modal pattern, form widgets | [custom-components](references/custom-components.md) |
 | Authentication | `DefaultAuthProvider`, cookie gotchas, DB-backed auth, JWT, role gating via `isAccessible`, dev bypass | [authentication](references/authentication.md) |
-| Setup & bundling | Install order, peerDeps, React 18 pin, `@tiptap/extension-horizontal-rule` override, `.adminjs/` folder, production bundle strategy, Docker | [setup-and-bundling](references/setup-and-bundling.md) |
+| Setup & bundling | Install order, peerDeps, React 18 pin, `@tiptap/extension-horizontal-rule` override, `.adminjs/` dev folder, Docker basics | [setup-and-bundling](references/setup-and-bundling.md) |
+| Production bundling | `@adminjs/bundler` + `ADMIN_JS_SKIP_BUNDLE="true"`, asset versioning manifest, CI/CD pipeline, read-only FS, cache-busting on CDN | [production-bundling](references/production-bundling.md) |
+| Official features | `@adminjs/passwords`, `@adminjs/logger`, `@adminjs/import-export`, `@adminjs/leaflet`, `@adminjs/relations` (premium), `@adminjs/firebase-auth` — Drizzle-compatible examples | [official-features](references/official-features.md) |
+| Community components | `@rulab/adminjs-components`: Singleton, ColorStatus, Slug, UUID, Editor (EditorJS — the Tiptap escape hatch), StringList, SortableList (drag-drop reorder), Tabs, Preview | [community-components](references/community-components.md) |
 | Troubleshooting | Symptom → cause → fix for every known trap (blank page, login loop, `[object Object]` uploads, booleans as strings, stale bundle, broken richtext links, CORS, OpenAPI spam) | [troubleshooting](references/troubleshooting.md) |
 
 ### Templates (ready to copy)
@@ -242,6 +240,7 @@ Use them as `properties: { id: READONLY, internalNotes: HIDDEN, termsAcceptedAt:
 | `dashboard.tsx` | Redirect-only dashboard — jumps straight to a chosen resource | [templates/dashboard.tsx](templates/dashboard.tsx) |
 | `custom-record-action.tsx` | Modal-style record action: file input → POST to action endpoint → success notice | [templates/custom-record-action.tsx](templates/custom-record-action.tsx) |
 | `patch-adminjs-richtext.mjs` | postinstall script fixing the broken richtext link button | [templates/patch-adminjs-richtext.mjs](templates/patch-adminjs-richtext.mjs) |
+| `bundle.ts` | Standalone `@adminjs/bundler` pre-bundle script — runnable in CI to eliminate server-side bundling | [templates/bundle.ts](templates/bundle.ts) |
 
 ### Examples (complete runnable files)
 
@@ -259,7 +258,11 @@ Use them as `properties: { id: READONLY, internalNotes: HIDDEN, termsAcceptedAt:
 - You're storing a JSON column without `type: "mixed"` override → the form will silently corrupt the value on first edit.
 - You define a custom S3 provider but read `file.path` → it's undefined, the file is a Blob.
 - You have a multi-image resource with two `uploadFileFeature` blocks sharing default virtual names → second feature silently wins, first overwrites.
-- You pre-baked `.adminjs/` in a Docker build but mount it on a read-only volume → first request crashes trying to write the bundle.
+- You pre-baked `.adminjs/` in a Docker build but mount it on a read-only volume → first request crashes trying to write the bundle. **Use `@adminjs/bundler` instead** — no runtime writes.
+- You set `ADMIN_JS_SKIP_BUNDLE=true` as a boolean (e.g. in a typed config loader) → AdminJS still bundles on startup. Must be literal string `"true"`.
+- You're hand-rolling slug / sort / tabs / status-badge components → check `@rulab/adminjs-components` first; it likely ships what you need.
+- You're using AdminJS's built-in Tiptap richtext for serious content editing → swap to `EditorFeature` (EditorJS) from `@rulab/adminjs-components`. Tiptap in AdminJS has a long tail of bugs.
+- You need M2M UI and assume `@adminjs/relations` is free → it's **paid** (requires `ADMIN_JS_LICENSE_KEY` via `@adminjs/license`). On OSS/hobby, register the join table as its own resource or write a custom `attach`/`detach` action.
 - You expect `buildRouter(admin, { logErrors: true })` to log errors → options object is inert in v0.1.4; add your own `.onError` on the parent Elysia app.
 
 ## Version Notes

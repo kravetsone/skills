@@ -173,6 +173,23 @@ description: { type: "textarea" },
 
 Plain `<textarea>`. Use for descriptions, prompts, code snippets, etc.
 
+### Geo / lat-lng — `@adminjs/leaflet`
+
+For lat/lng columns, the official `@adminjs/leaflet` feature gives you a map widget with OSM tiles, click-to-drop-pin, and address search:
+
+```typescript
+import { leafletFeature } from "@adminjs/leaflet";
+
+features: [
+    leafletFeature({
+        componentLoader,
+        properties: { latitude: "latitude", longitude: "longitude", map: "map" },
+    }),
+],
+```
+
+See [official-features](official-features.md) → Leaflet.
+
 ### Mixed — structured object editor
 
 ```typescript

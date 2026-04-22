@@ -159,6 +159,25 @@ Do not set a prefix on the wrapping Elysia — AdminJS's `rootPath` becomes the 
 
 **Fix:** run [templates/patch-adminjs-richtext.mjs](../templates/patch-adminjs-richtext.mjs) as a postinstall script.
 
+### Symptom: had enough of Tiptap — want a different rich-text editor
+
+**Cause:** `@adminjs/design-system`'s Tiptap editor has a long tail of small bugs (link button, horizontal rule, paste handling, nested lists).
+
+**Fix:** swap to EditorJS via `@rulab/adminjs-components`'s `EditorFeature`:
+
+```typescript
+import { EditorFeature } from "@rulab/adminjs-components";
+
+features: [
+    EditorFeature({
+        key: "content",
+        uploadProvider: createProvider("editor-images"),
+    }),
+],
+```
+
+Storage becomes `jsonb` (EditorJS block structure) instead of HTML. Better structure, richer embeds (audio, video, attaches, lists), clean upload integration. Migration from existing Tiptap HTML needs a one-time converter script. See [community-components](community-components.md) → Editor.
+
 ### Symptom: richtext editor crashes with "Cannot read properties of undefined (reading 'schema')"
 
 **Cause:** `@tiptap/extension-horizontal-rule` version mismatch with bundled tiptap core.

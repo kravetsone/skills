@@ -1,15 +1,25 @@
 {
-	"version": "2026.4.22",
+	"version": "2026.4.23",
 	"author": "kravetsone",
 	"source": "https://github.com/kravetsone/skills/tree/main/adminjs",
 	"upstream": "https://github.com/SoftwareBrothers/adminjs",
-	"date": "22 Apr 2026",
-	"abstract": "AdminJS 7 on the Bun + Elysia + Drizzle ORM + S3 stack. Covers the thinnest-documented and most foot-gun-prone combination in the ecosystem: `adminjs-elysia`'s `buildRouter` / `buildAuthenticatedRouter` (including the v0.1.4 cookie-name bug and ignored options), `adminjs-drizzle`'s `/pg` / `/mysql` / `/sqlite` adapters with their snake_case param keys and boolean-as-string quirks in action handlers, `@adminjs/upload`'s `BaseProvider` contract (and why the built-in AWS/GCP providers are broken under Elysia because the file is a Web API Blob, not a formidable `{ path }` object), Bun-native `S3Client` and `@aws-sdk/client-s3` provider templates, multiple upload features per resource with distinct virtual property names, richtext link-button patch, ComponentLoader path resolution, React 18 pin, production bundle strategy for `.adminjs/`, custom record/resource/bulk actions with before/after hooks, `DefaultAuthProvider` and JWT cookies, plus copy-paste templates and node scripts (`doctor.mjs`, `bundle-check.mjs`, `scaffold-resource.mjs`). Trigger on imports of `adminjs`, `adminjs-elysia`, `adminjs-drizzle`, `@adminjs/upload`, `@adminjs/themes`, `@adminjs/design-system`, or on any task involving AdminJS resource configuration, custom actions, S3-backed uploads, and Elysia integration.",
+	"date": "23 Apr 2026",
+	"abstract": "AdminJS 7 on the Bun + Elysia + Drizzle ORM + S3 stack plus the broader ecosystem (`@adminjs/passwords`, `@adminjs/logger`, `@adminjs/import-export`, `@adminjs/leaflet`, `@adminjs/bundler`, `@adminjs/relations` premium note, `@adminjs/firebase-auth`, `@gugupy/adminjs-keycloak`, `@rulab/adminjs-components`). Covers `adminjs-elysia`'s `buildRouter` / `buildAuthenticatedRouter` (v0.1.4 cookie-name bug and ignored options), `adminjs-drizzle`'s snake_case + boolean-as-string quirks, `@adminjs/upload`'s `BaseProvider` contract (and why built-in AWS/GCP providers are broken under Elysia because the file is a Web API Blob, not formidable `{ path }`), Bun `S3Client` + `@aws-sdk/client-s3` provider templates, multi-upload-per-resource virtual-name collisions, production pre-bundling with `@adminjs/bundler` + `ADMIN_JS_SKIP_BUNDLE=\"true\"` (string!), asset versioning, drag-drop reorder via `SortableListFeature`, EditorJS escape-hatch from buggy Tiptap, Keycloak/OIDC auth, the `buildFeature()` helper pattern for reusable feature factories, richtext link-button patch, ComponentLoader path resolution, React 18 pin, custom record/resource/bulk actions with before/after hooks, `DefaultAuthProvider` and JWT cookies, plus copy-paste templates and node scripts (`doctor.mjs`, `bundle-check.mjs`, `scaffold-resource.mjs`). Trigger on imports of `adminjs`, `adminjs-elysia`, `adminjs-drizzle`, `@adminjs/*`, `@rulab/adminjs-components`, `@gugupy/adminjs-keycloak`, or on any task involving AdminJS resource configuration, custom actions, S3-backed uploads, and Elysia integration.",
 	"references": [
 		"https://docs.adminjs.co/",
 		"https://docs.adminjs.co/basics/features/upload",
+		"https://docs.adminjs.co/basics/features/password",
+		"https://docs.adminjs.co/basics/features/logger",
+		"https://docs.adminjs.co/basics/features/import-and-export",
+		"https://docs.adminjs.co/basics/features/relations",
 		"https://github.com/AdamVerner/adminjs-elysia",
 		"https://github.com/makuko/adminjs-drizzle",
-		"https://github.com/SoftwareBrothers/adminjs-upload"
+		"https://github.com/SoftwareBrothers/adminjs-upload",
+		"https://github.com/SoftwareBrothers/adminjs-bundler",
+		"https://github.com/SoftwareBrothers/adminjs-passwords",
+		"https://github.com/SoftwareBrothers/adminjs-logger",
+		"https://github.com/SoftwareBrothers/adminjs-import-export",
+		"https://github.com/rulab/adminjs-components",
+		"https://github.com/gugupy/adminjs-keycloak"
 	]
 }
