@@ -1,0 +1,26 @@
+{
+  "version": "2026.4.23",
+  "author": "kravetsone",
+  "source": "https://github.com/kravetsone/skills/tree/main/subsonic-api",
+  "upstream": "https://opensubsonic.netlify.app/",
+  "date": "23 Apr 2026",
+  "abstract": "Skill for building Subsonic / OpenSubsonic / Navidrome API clients in TypeScript across Node, Bun, Deno, Cloudflare Workers, Electron, and browser runtimes. Covers token+salt MD5 authentication (u/p/t/s/v/c/f), the OpenSubsonic apiKey extension, getOpenSubsonicExtensions feature-detection, all endpoint categories (system, browsing, album/song lists, search, playlists, media retrieval, annotation, sharing, podcast, jukebox, radio, bookmarks, scanning, user management), and every OpenSubsonic extension (formPost, songLyrics, transcodeOffset, indexBasedQueue, playbackReport, sonicSimilarity, getPodcastEpisode, tokenInfo). Documents Navidrome-specific quirks: IDs-as-strings, no video endpoints, search3 without Lucene, getUsers returning only authenticated user, multi-library via musicFolderId, reverse-proxy auth with ReverseProxyUserHeader, ND_BASEURL subpath, CVE-2025-27112 authbypass fix. Also covers the Navidrome native /api/* JWT REST (unstable): /auth/login, react-admin pagination (_sort/_order/_start/_end/filter), admin endpoints /api/plugin /api/library /api/missing /api/config, SSE /api/events?jwt=. Includes 5 templates (audioling-client, zero-dep minimal-client, apikey-client, navidrome-native-client, hono-proxy), a check-server.mjs capability-probe script, and a runnable home-feed example. Client-library comparison covers @audioling/open-subsonic-api-client, subsonic-api, @vmohammad/subsonic-api, subsonicjs. Server compatibility matrix includes Navidrome, Airsonic-Advanced, Gonic, LMS, Supysonic, Funkwhale, Ampache, Astiga.",
+  "references": [
+    "https://opensubsonic.netlify.app/docs/",
+    "https://opensubsonic.netlify.app/docs/api-reference/",
+    "https://opensubsonic.netlify.app/docs/extensions/",
+    "https://opensubsonic.netlify.app/docs/opensubsonic-changes/",
+    "https://opensubsonic.netlify.app/docs/openapi/",
+    "https://www.subsonic.org/pages/api.jsp",
+    "https://www.navidrome.org/docs/developers/subsonic-api/",
+    "https://www.navidrome.org/docs/usage/configuration/options/",
+    "https://github.com/opensubsonic/open-subsonic-api",
+    "https://github.com/audioling/open-subsonic-api-client",
+    "https://github.com/navidrome/navidrome",
+    "https://deepwiki.com/navidrome/navidrome/4.1-subsonic-api",
+    "https://deepwiki.com/navidrome/navidrome/4.2-native-rest-api",
+    "https://www.navidrome.org/docs/usage/smartplaylists/",
+    "https://github.com/navidrome/navidrome/tree/master/model/criteria",
+    "https://github.com/advisories/GHSA-c3p4-vm8f-386p"
+  ]
+}
