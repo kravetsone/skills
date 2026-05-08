@@ -322,6 +322,91 @@ export default function CurrencyEdit({ record, property, onChange }: {
 }
 ```
 
+## Pattern 5 — Help / docs sidebar page (markdown)
+
+Operators always ask "what does this button do?". Ship the answer **inside the panel** as a sidebar entry that renders your existing `docs/admin-panel.md` (or any markdown file). Two-part trick: the AdminJS page is a thin React component, the actual rendering happens server-side via `marked` and is served as a styled HTML page that the component embeds in an `<iframe>`. The iframe is the key — AdminJS's design-system CSS would otherwise mangle your markdown styles, and vice versa.
+
+```typescript
+// src/admin/help.ts — server-side markdown → styled HTML, cached
+import path from "node:path";
+import { marked } from "marked";
+
+const MD_PATH = path.join(import.meta.dir, "../../docs/admin-panel.md");
+let cached: string | null = null;
+
+export async function getHelpHtml(): Promise<string> {
+    if (cached) return cached;
+    const md = await Bun.file(MD_PATH).text();
+    const body = await marked.parse(md, { gfm: true });
+    cached = `<!doctype html><html><head><meta charset="utf-8" />
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 880px;
+         margin: 0 auto; padding: 40px 32px; line-height: 1.65; color: #1c2024; }
+  h1, h2 { border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
+  th { background: #f7f8fa; }
+  code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; }
+  pre { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; overflow-x: auto; }
+  blockquote { background: #eef2ff; border-left: 3px solid #4268f6;
+               padding: 0.6em 1em; border-radius: 0 6px 6px 0; }
+</style></head><body>${body}</body></html>`;
+    return cached;
+}
+```
+
+```tsx
+// src/admin/components/help-page.tsx — iframe wrapper, isolates CSS
+import { Box } from "@adminjs/design-system";
+
+export default function HelpPage() {
+    return (
+        <Box style={{ height: "calc(100vh - 80px)", borderRadius: 8, overflow: "hidden" }}>
+            <iframe src="/admin-help" title="Help"
+                style={{ width: "100%", height: "100%", border: "none" }} />
+        </Box>
+    );
+}
+```
+
+```typescript
+// src/admin/index.ts — register page + mount the iframe route
+const helpPageComponent = componentLoader.add(
+    "HelpPage",
+    path.join(import.meta.dir, "components/help-page"),
+);
+
+const admin = new AdminJS({
+    rootPath: "/admin",
+    componentLoader,
+    pages: {
+        help: { icon: "HelpCircle", component: helpPageComponent },
+    },
+    locale: {
+        language: "ru",
+        availableLanguages: ["ru", "en"],
+        translations: { ru: { labels: { help: "Справка" } } },
+    },
+    resources: [/* … */],
+});
+
+// IMPORTANT: mount the /admin-help route on the *parent* Elysia, NOT under /admin
+// (AdminJS catches everything under rootPath). Wrap buildRouter:
+return new Elysia({ detail: { hide: true } })
+    .get("/admin-help", async () => new Response(await getHelpHtml(), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+    }))
+    .use(await buildRouter(admin, {}));
+```
+
+**Three things to know:**
+
+1. **`pages` keys must be URL-safe ASCII** — they become path segments (`/admin/pages/help`). To show a non-English label in the sidebar, use the `locale.translations.<lang>.labels.<key>` map, not a `label` field on the page (it doesn't exist in `AdminPage`'s type).
+2. **The iframe URL must live outside `/admin/*`** — AdminJS's catch-all eats anything under `rootPath`. Mount your `/admin-help` (or `/help`, `/docs`, etc.) on the parent Elysia instance, before or after `buildRouter`.
+3. **Cache the rendered HTML** — markdown parsing is fast but it's wasted work on every request. A module-level `let cached` is enough; restart the server when docs change in dev (or skip the cache when `NODE_ENV !== "production"`).
+
+This pattern works for any static markdown: API key onboarding, release notes, runbooks, internal wiki dumps. For a single source of truth, point both the public `docs/` site and the in-panel page at the same `.md` file.
+
 ## Routing inside custom components
 
 `react-router`'s `useNavigate`, `useLocation`, `useParams` all work — AdminJS wraps the admin UI in a React Router provider. Useful for breadcrumbs, back buttons, redirects.

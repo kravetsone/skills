@@ -196,6 +196,22 @@ Read these **once** before writing any AdminJS code. Each is a gotcha that will 
 
 15. **Subagent delegation** — when spawning an agent that writes AdminJS code, explicitly pass the relevant reference paths in the prompt (e.g. `skills/adminjs/references/s3-uploads.md`, `skills/adminjs/references/custom-actions.md`) or inline the key rules. This skill does not auto-activate inside subagents.
 
+## Tip — In-panel help page from a markdown file
+
+If you already maintain `docs/admin-panel.md` (or any operator-facing markdown), surface it **inside the panel** as a sidebar entry. Operators stop pinging you for "how do I X?" — the answer lives one click away. The trick: render markdown → HTML server-side with `marked`, serve it on a route *outside* `rootPath`, and embed it via `<iframe>` from a custom AdminJS page (the iframe isolates CSS so your markdown styling doesn't fight `@adminjs/design-system`).
+
+```typescript
+pages: {
+    help: { icon: "HelpCircle", component: helpPageComponent },
+},
+locale: {
+    language: "ru",
+    translations: { ru: { labels: { help: "Справка" } } },
+},
+```
+
+Page keys must be URL-safe ASCII; non-English sidebar labels go through `locale.translations.<lang>.labels.<key>`. The iframe URL (`/admin-help`, `/docs`, …) **must not** live under `rootPath` — AdminJS's catch-all eats it. Full code in [custom-components → Pattern 5](references/custom-components.md#pattern-5--help--docs-sidebar-page-markdown).
+
 ## Visibility Helper Constants (copy-paste into every project)
 
 These three constants — extracted from the user's reference project — are the cleanest way to keep resource definitions readable. Add them once at the top of `resources.ts`:
