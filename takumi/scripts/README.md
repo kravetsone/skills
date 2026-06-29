@@ -96,6 +96,14 @@ its filename (matching the `src` keys `scaffold` emits). With `--diff` it runs `
 exits non-zero on fail — one command per loop iteration. `--component` default-exports a Takumi
 element or a zero-arg component. Run with **Bun**, from the target repo.
 
+**No Figma?** `render.mjs` and `measure-probe.mjs` are general-purpose — skip `--spec`/`--diff`
+and size directly. This is the standalone Bun/Node way to render *any* component to an image:
+
+```bash
+bun render.mjs --component ./Card.tsx --width 1200 --height 630 --out card.png
+bun measure-probe.mjs --component ./Card.tsx --width 1200 --height 630   # layout x-ray
+```
+
 ## 5. `visual-diff.mjs` — the verify gate
 
 ```bash

@@ -77,7 +77,7 @@ const texts = [];
 let ti = 0;
 
 console.log(`measured geometry (x,y absolute · w×h) — ${width}×${height}\n`);
-walk(measured, 0, 0, 0);
+walk(measured, 0);
 
 // -----------------------------------------------------------------------------
 function isTextLeaf(m) {
@@ -86,15 +86,17 @@ function isTextLeaf(m) {
   return !!(only && only.runs?.length > 0 && (only.children?.length ?? 0) === 0);
 }
 
-function walk(m, depth, ax, ay) {
-  const x = round(ax + (m.transform?.[4] ?? 0));
-  const y = round(ay + (m.transform?.[5] ?? 0));
+function walk(m, depth) {
+  // Takumi's measured `transform` is ALREADY absolute (root-relative) — transform[4],[5] are the
+  // node's world x,y. Do NOT accumulate down the tree (that double-counts parent offsets).
+  const x = round(m.transform?.[4] ?? 0);
+  const y = round(m.transform?.[5] ?? 0);
   const textLeaf = isTextLeaf(m);
   const label = textLeaf ? (ti < texts.length ? JSON.stringify(texts[ti++]) : '"text"') : "box";
   const coord = `${x},${y}`.padEnd(11);
   const size = `${round(m.width)}×${round(m.height)}`.padEnd(11);
   console.log(`${"  ".repeat(depth)}${coord} ${size} ${label}`);
-  if (!textLeaf) for (const c of m.children ?? []) walk(c, depth + 1, x, y);
+  if (!textLeaf) for (const c of m.children ?? []) walk(c, depth + 1);
 }
 
 function loadDir(dir, filter = () => true) {

@@ -23,7 +23,10 @@ type MeasuredNode = {
 ```
 
 - **Size**: `width` / `height` are the node's content-box dimensions.
-- **Position**: the affine `transform` carries the offset — `transform[4]` = x, `transform[5]` = y, **relative to the parent**. For an absolute position (relative to the root), accumulate the x/y down the path (and apply scale/rotation from `a,b,c,d` if you use them — cards usually don't).
+- **Position**: the affine `transform` is the node's **absolute (root-relative) world transform** —
+  `transform[4]` = x, `transform[5]` = y of the node within the whole image. Use it **directly**;
+  do **not** accumulate it down the tree (that double-counts parent offsets). `a,b,c,d` carry
+  scale/rotation if you use them — cards usually don't.
 - **children** mirror the input node's children order (anonymous — no `id`/`tagName`, so map positionally).
 
 ```ts
