@@ -82,6 +82,13 @@ const originX = root.absoluteBoundingBox?.x ?? 0;
 const originY = root.absoluteBoundingBox?.y ?? 0;
 const fonts = new Map(); // "Family|weight|postscript" -> {family, weight, postscript, styles:Set}
 const imageRefs = new Set(); // image-fill refs collected while flattening
+const rasterTargets = new Map(); // node id -> spec node, for vector/instance leaves to export as PNG
+const frameArea = (root.absoluteBoundingBox?.width ?? 0) * (root.absoluteBoundingBox?.height ?? 0);
+// Node types that are opaque graphics with no reconstructable structure — export them as a PNG.
+// Declared here (above the flatten() call below) so it's initialized before isRasterLeaf runs.
+const RASTER_TYPES = new Set([
+  "VECTOR", "BOOLEAN_OPERATION", "LINE", "REGULAR_POLYGON", "STAR", "INSTANCE", "COMPONENT",
+]);
 
 const spec = flatten(root);
 
@@ -110,6 +117,44 @@ if (imageRefs.size) {
       console.warn(`  ! failed to download image ${ref}: ${e.message}`);
     }
   }
+}
+
+// 5. Rasterized vector/instance leaves -----------------------------------------
+// Component instances and vectors (icon frames, rating stars, decorative glyphs) aren't image
+// FILLS, so the asset endpoint above can't return them — and they can't be rebuilt from the node
+// JSON either. Export each as its own PNG via the node /images endpoint at the frame scale, so the
+// scaffold can emit a real <img>. Without this they render blank/wrong (the constellation frames,
+// weapon-rarity stars, etc.).
+let rasterCount = 0;
+if (rasterTargets.size) {
+  const ids = [...rasterTargets.keys()];
+  const imgDir = join(outDir, "images");
+  mkdirSync(imgDir, { recursive: true });
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50); // /images takes many ids per call; chunk to bound URL length
+    const res = await api(
+      `/images/${fileKey}?ids=${encodeURIComponent(chunk.join(","))}&format=png&scale=${scale}`,
+    );
+    const map = res.images || {};
+    for (const id of chunk) {
+      const url = map[id];
+      if (!url) {
+        console.warn(`  ! no raster URL for node ${id}`);
+        continue;
+      }
+      try {
+        const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
+        const file = `node_${id.replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+        writeFileSync(join(imgDir, file), buf);
+        rasterTargets.get(id).raster = `images/${file}`;
+        rasterCount++;
+      } catch (e) {
+        console.warn(`  ! failed to rasterize node ${id}: ${e.message}`);
+      }
+    }
+  }
+  // Any that failed to export: drop the placeholder so the scaffold falls back to normal handling.
+  for (const node of rasterTargets.values()) if (node.raster === true) delete node.raster;
 }
 
 writeFileSync(
@@ -150,9 +195,16 @@ if (fonts.size) {
 }
 if (Object.keys(images).length)
   console.log(`  ${Object.keys(images).length} image fill(s) → ${join(outDir, "images")}/`);
+if (rasterCount)
+  console.log(`  ${rasterCount} vector/instance leaf/leaves rasterized → ${join(outDir, "images")}/node_*.png`);
 
 // -----------------------------------------------------------------------------
 function flatten(n) {
+  // Hidden Figma layers (visibility toggled off) aren't painted in the export — skip them so they
+  // can't appear in the spec/scaffold (a hidden full-canvas vector would otherwise overpaint
+  // everything). Returning null here also keeps their fonts/image fills out of the collected sets.
+  if (n.visible === false) return null;
+
   const box = n.absoluteBoundingBox
     ? {
         x: round1(n.absoluteBoundingBox.x - originX),
@@ -193,6 +245,14 @@ function flatten(n) {
   if (n.layoutAlign === "STRETCH") out.stretch = true;
   if (n.rotation) out.rotation = round1((n.rotation * 180) / Math.PI);
 
+  // Vector/instance leaf with no text and no image fill → can't be reconstructed from JSON; export
+  // it as its own PNG (below) and treat it as an opaque <img>. Keep box/sizing/rotation already set.
+  if (isRasterLeaf(n, frameArea)) {
+    out.raster = true; // placeholder; replaced with the exported PNG path after the batch /images call
+    rasterTargets.set(n.id, out);
+    return out;
+  }
+
   const fills = paints(n.fills, n.absoluteBoundingBox, imageRefs);
   if (fills) out.fills = fills;
   const strokes = paints(n.strokes, n.absoluteBoundingBox);
@@ -223,10 +283,32 @@ function flatten(n) {
     }
   }
 
-  if (Array.isArray(n.children) && n.children.length)
-    out.children = n.children.map(flatten);
+  if (Array.isArray(n.children) && n.children.length) {
+    const kids = n.children.map(flatten).filter(Boolean);
+    if (kids.length) out.children = kids;
+  }
 
   return out;
+}
+
+function hasTextDescendant(n) {
+  if (n.type === "TEXT" && (n.characters ?? "").trim()) return true;
+  return (n.children ?? []).some(hasTextDescendant);
+}
+
+// Should this node be exported as a flat PNG rather than reconstructed? A vector graphic or
+// component instance with no text to keep, not already an image fill, and not background-sized
+// (large nodes are real backgrounds and belong as image fills / divs). Captures icon frames,
+// rating stars, decorative glyphs — and crucially keeps text-bearing instances (e.g. ">" chevrons)
+// live so their text still renders.
+function isRasterLeaf(n, frameArea) {
+  if (n.visible === false) return false;
+  if (!RASTER_TYPES.has(n.type)) return false;
+  if (hasTextDescendant(n)) return false;
+  if ((n.fills ?? []).some((f) => f.type === "IMAGE")) return false;
+  const b = n.absoluteBoundingBox;
+  if (b && frameArea && b.width * b.height > 0.2 * frameArea) return false;
+  return true;
 }
 
 function paints(arr, box, refs) {
@@ -295,7 +377,11 @@ function rgba(c, opacity = 1) {
 function round(b) {
   return b ? { x: round1(b.x), y: round1(b.y), w: round1(b.width), h: round1(b.height) } : undefined;
 }
-const round1 = (n) => (n == null ? n : Math.round(n * 100) / 100);
+// NB: function declaration (hoisted) — `flatten` runs at module top-level before a `const`
+// arrow would be initialized, so a const here throws "Cannot access 'round1' before initialization".
+function round1(n) {
+  return n == null ? n : Math.round(n * 100) / 100;
+}
 
 function fail(msg) {
   console.error(`figma-pull: ${msg}`);

@@ -60,10 +60,10 @@ const fonts = loadDir(values.fonts, (f) =>
 const persistentImages = loadDir(values.images).map(({ name, data }) => ({ src: name, data }));
 
 const mod = await import(pathToFileURL(resolve(process.cwd(), values.component)).href);
-const d = mod.default ?? mod;
-const element = typeof d === "function" ? d() : d;
+const picked = pickComponent(mod);
+const element = typeof picked === "function" ? picked() : picked;
 if (!element || typeof element !== "object")
-  fail(`--component ${values.component} must default-export a Takumi element or a zero-arg component.`);
+  fail(`--component ${values.component} must export (default OR a single named) a Takumi element or zero-arg component.`);
 
 // NB: an empty `fonts: []` DISABLES the embedded default font (text → blank). Omit when empty.
 const rendererOpts = {};
@@ -90,6 +90,17 @@ if (values.diff) {
 }
 
 // -----------------------------------------------------------------------------
+// Accept a default export OR a single named export — scaffold.mjs emits a named component, and
+// `mod.default ?? mod` would otherwise hand fromJsx the whole module namespace ("No default value").
+function pickComponent(mod) {
+  if (mod.default !== undefined) return mod.default;
+  const fns = Object.values(mod).filter((v) => typeof v === "function");
+  if (fns.length === 1) return fns[0];
+  const objs = Object.values(mod).filter((v) => v && typeof v === "object");
+  if (!fns.length && objs.length === 1) return objs[0];
+  return mod; // falls through to the clear type-check error below
+}
+
 function loadDir(dir, filter = () => true) {
   if (!dir || !existsSync(dir)) return [];
   return readdirSync(dir)

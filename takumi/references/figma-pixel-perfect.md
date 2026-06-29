@@ -213,6 +213,17 @@ await Bun.write("render.png", png);
 3. Change **one value**, re-render, re-diff. Converge until mismatch ≤ threshold
    (~0.5–1% is "pixel-perfect for cards"; tune per content — gradients/photos never hit 0).
 
+**Full-bleed art has a resample floor — judge the layout by the *hard* diff.** A card with a
+full-bleed illustration (a character splash, a photo) behind translucent panels can sit at a
+*high* strict mismatch (e.g. 68% at `--threshold 0.1`) while the layout is pixel-perfect: every
+pixel has art behind it, and Figma's exporter vs Takumi's resampler never agree bit-for-bit on a
+busy downscaled image. Diagnose by **sweeping `--threshold`**: if the mismatch decays smoothly as
+you raise it (68% → 45% → 19% → 7% at 0.1/0.25/0.45/0.6), that's diffuse *color drift* (the art
+floor), not a structural error — a real offset stays high at every threshold because edges are
+high-contrast. Read the **high-threshold (≈0.6) diff** to see only the structural deltas; confirm
+text/panels show as *matching* (white) there. So: don't chase the strict % to zero on an art card —
+get the hard diff clean (text/geometry matching) and accept the art floor.
+
 `render.mjs --diff` does steps render + (1) in one command; reach for `measure-probe` (2) only
 when a hotspot is ambiguous. Wire `render.mjs --diff` (or `visual-diff`) into a hook / CI gate so
 "done" can't be claimed while the diff is red — the same trick web pipelines use with a tsc
@@ -288,7 +299,7 @@ don't reach for an external screenshot/diff tool.
 
 | Script | Does | Deps |
 | ------ | ---- | ---- |
-| `figma-pull.mjs` | Figma REST → `figma.png` reference + flattened `spec.json` (boxes, layout, styles, fonts, gradient angles) + downloaded image-fill assets | none (`fetch`) |
+| `figma-pull.mjs` | Figma REST → `figma.png` reference + flattened `spec.json` (boxes, layout, styles, fonts, gradient angles) + downloaded image-fill assets. **Skips hidden layers**; **rasterizes vector/instance leaves** (icon frames, rating stars, glyphs) to `images/node_*.png` so they aren't blank | none (`fetch`) |
 | `fonts-fetch.mjs` | Download the spec's fonts from Google Fonts into a dir (best-effort; lists non-OSS fonts to supply by hand) | none (`fetch`) |
 | `scaffold.mjs` | `spec.json` → first-pass component: Auto Layout → flex/gap/padding, sizing HUG/FILL/FIXED, real `<img>` + gradients, absolute only for overlays | none |
 | `render.mjs` | **One-command loop driver** (Bun): render the component at exact px with the frame's fonts + images, optional inline `--diff` | `takumi-js` (+ `pixelmatch`/`pngjs` for `--diff`) |

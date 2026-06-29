@@ -60,6 +60,17 @@ exact **render px**, and an `images` map), and downloads each image fill into `i
 and use `get_metadata`/`get_screenshot`/`get_variable_defs` — just shape the result into the same
 `spec.json`.
 
+Two things it does that matter for fidelity:
+
+- **Hidden layers are skipped** (`visible: false`). A hidden full-canvas vector would otherwise
+  land in the scaffold and over-paint the whole card — exactly the kind of bug a screenshot hides.
+- **Vector/instance leaves are rasterized.** Component instances and vectors (icon frames, rating
+  stars, decorative glyphs) aren't image *fills*, so they can't be pulled as assets *or* rebuilt
+  from JSON. `figma-pull` exports each as its own PNG via the node `/images` endpoint
+  (`images/node_<id>.png`) and marks it `raster` in the spec; `scaffold` emits a plain `<img>` for
+  it. Text-bearing instances are kept live (their text still renders), and background-sized nodes
+  are left as image fills. Without this, those decorations render blank.
+
 ## 2. `fonts-fetch.mjs` — get the exact fonts (best-effort)
 
 ```bash

@@ -57,7 +57,7 @@ ${fontLines || "//   (no text nodes detected)"}
 import { Renderer } from "takumi-js/node";
 import { fromJsx } from "takumi-js/helpers/jsx";
 
-export function ${compName}() {
+export default function ${compName}() {
   return (
 ${body}
   );
@@ -82,12 +82,17 @@ console.log(`  next: refine into semantic flex, then diff with scripts/visual-di
 function emit(node, parent, indent) {
   const pad = "  ".repeat(indent);
   const isText = node.type === "TEXT";
-  const isImage = node.type === "IMAGE" || node.fills?.some((f) => f.type === "image");
+  const isImage = node.type === "IMAGE" || node.fills?.some((f) => f.type === "image") || node.raster;
   const style = styleFor(node, parent);
   const styleStr = styleToJsx(style);
   const comment = ` {/* ${node.type} · ${node.name} */}`;
 
   if (isImage) {
+    // A rasterized vector/instance leaf: figma-pull exported the whole node as one PNG.
+    if (node.raster) {
+      const key = node.raster.split("/").pop(); // persistentImages key = filename (render.mjs registers by basename)
+      return `${pad}<img src=${JSON.stringify(key)} style={${styleStr}} />${comment}`;
+    }
     const ref = node.fills?.find((f) => f.type === "image")?.imageRef ?? "";
     const rel = IMAGES[ref];
     if (rel) {
@@ -157,7 +162,8 @@ function styleFor(node, parent) {
     if (t.textAlign) s.textAlign = String(t.textAlign).toLowerCase();
     if (t.textCase && t.textCase !== "ORIGINAL")
       s.textTransform = { UPPER: "uppercase", LOWER: "lowercase", TITLE: "capitalize" }[t.textCase];
-  } else {
+  } else if (!node.raster) {
+    // (a rasterized leaf carries its fills inside the PNG — don't re-paint them)
     if (solid) s.backgroundColor = solid.color;
     if (grad) s.backgroundImage = gradientCss(grad);
   }
@@ -167,18 +173,19 @@ function styleFor(node, parent) {
   if (node.opacity != null) s.opacity = node.opacity;
   if (node.rotation) s.transform = `rotate(${node.rotation}deg)`;
 
-  if (node.strokes?.paints?.length) {
+  if (!node.raster && node.strokes?.paints?.length) {
     s.borderWidth = node.strokes.weight ?? 1;
     s.borderStyle = "solid";
     s.borderColor = node.strokes.paints[0].color;
   }
 
-  const shadow = node.effects?.find((e) => e.type === "drop-shadow");
+  // (rasterized leaves bake their own effects into the PNG — only re-emit effects for live nodes)
+  const shadow = !node.raster && node.effects?.find((e) => e.type === "drop-shadow");
   if (shadow)
     s.boxShadow = `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread || 0}px ${shadow.color}`;
-  const blur = node.effects?.find((e) => e.type === "blur");
+  const blur = !node.raster && node.effects?.find((e) => e.type === "blur");
   if (blur) s.filter = `blur(${blur.radius}px)`;
-  const bblur = node.effects?.find((e) => e.type === "backdrop-blur");
+  const bblur = !node.raster && node.effects?.find((e) => e.type === "backdrop-blur");
   if (bblur) s.backdropFilter = `blur(${bblur.radius}px)`;
 
   // overflow:hidden when corner radius clips children (common for cards/avatars)
