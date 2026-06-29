@@ -360,6 +360,10 @@ function readEffects(arr) {
         };
       if (e.type === "LAYER_BLUR") return { type: "blur", radius: e.radius };
       if (e.type === "BACKGROUND_BLUR") return { type: "backdrop-blur", radius: e.radius };
+      // Figma's "Glass" material → a frosted backdrop. REST exposes no params (no radius), so
+      // emit a backdrop-blur with a sane default; tune the radius against the diff. `glass: true`
+      // also flags that the node's 0.5px stroke should be drawn dimmed (see figma-pixel-perfect.md).
+      if (e.type === "GLASS") return { type: "backdrop-blur", radius: e.radius ?? 8, glass: true };
       return { type: e.type };
     });
   return out.length ? out : undefined;

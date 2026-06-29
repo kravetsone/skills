@@ -253,6 +253,49 @@ bun scripts/render.mjs --component ./Card.tsx --spec .figma/spec.json \
 #   → read mismatch% + heatmap + hotspot rects → change the value that owns the hotspot → re-run
 ```
 
+## Closing the last few percent (the 98 → 99.x% push)
+
+Once the scaffold renders, a real card stalls around 2–3% mismatch. Getting to ~1% is a
+different game from the first pass — these are the levers, learned dogfooding a 1280×640 build
+card (68% → **1.1% strict / 0.7% at threshold 0.2**). **Always drive by a region breakdown of the
+diff red** (count red px per area: header / panels / comment / art) so you fix the region that
+owns the error, not whatever you happen to look at.
+
+- **Flatten un-reproducible subtrees via Figma's own export — this is the single biggest win.**
+  A full-bleed illustration, a glass/blend-mode decoration, an ornate frame with a glow: anything
+  that (a) is a photo/art, (b) uses an effect REST/MCP don't expose, or (c) uses a blend mode that
+  needs its backdrop, will *never* reassemble pixel-exact. Export that node as a PNG
+  (`/images?ids=<id>&format=png&scale=<s>`) and drop it in as one `<img>`. Reproduce what's
+  *dynamic* (text, stats — your data); flatten what's *static and purely visual*. On the test card
+  this took the background alone from 68% → 2.5%.
+  - **Place flattened exports by `absoluteRenderBounds`, not `absoluteBoundingBox`.** Effects
+    (glow/shadow) bleed past the box, so the PNG is larger than the node; its top-left is the
+    render-bounds origin. (Card's constellation row: box `34,531 295×40`, but render bounds
+    `30,520 299×61` — the active-frame glow bled 11px up. Placing at the box clips the glow.)
+- **Takumi border quirks (a thin border is the #1 systematic residual after the art):**
+  - A Figma **0.5px INSIDE stroke** renders as a *half-covered* pixel (~55% of the stroke colour
+    over the fill); Takumi paints `borderWidth: 0.5` as a **full-opacity 1px** line. Match Figma by
+    keeping the geometry but **dimming the colour** (white → `rgba(255,255,255,0.55)`).
+  - Takumi **drops the far (bottom & right) edges of a sub-1px border** — top/left paint, bottom/
+    right vanish. Use `borderWidth: 1` (with the dimmed colour) so all four edges render. On the
+    card this one fix was ~0.25% (every panel had a missing bottom+right edge).
+- **`ELLIPSE` nodes need an explicit `borderRadius`.** A Figma circle becomes a `<div>`; without
+  `borderRadius` it's a square. (Talent discs / locked-constellation dots rendered as squares.)
+- **Text baseline drift in tall fixed-height boxes.** Takumi seats the first baseline ~1px higher
+  than Figma when a top-aligned text box is much taller than one line; nudge dense paragraphs down
+  ~1px. Single-line and flex-`alignItems:center` rows are unaffected (so most text is fine — only
+  the densest block showed it: the card's comment paragraph, where +1px cut its red in half).
+- **The font-AA floor is real and ~irreducible.** Even with the exact font, the design tool's text
+  rasterizer and Takumi's (Parley) anti-alias glyph edges differently — measure it and you'll find
+  your strokes ~0.5px heavier/lighter. This is the residual you *cannot* remove from code; it's
+  sub-perceptual. Stop chasing it once positions/colours are exact (verify positions with
+  `measure-probe`, colours by sampling pixels) — judge "done" by the **structural** (high-threshold)
+  diff, not the last 1% of glyph-edge AA.
+- **Diagnose with real pixels, not vibes.** When a region is stubborn, read the actual RGB across
+  the edge in render vs reference (a 10px scan) — it tells you *exactly* what's wrong (a pure-white
+  border that should be 55% grey; a missing bottom edge; a 1px text shift) far faster than staring
+  at the heatmap.
+
 ## Anti-patterns (the corrections that *break* pixel-perfect)
 
 - **Eyeballing the screenshot.** Changing `fontSize` 14→15 or nudging margins because it
