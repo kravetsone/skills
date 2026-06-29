@@ -43,6 +43,26 @@ The glyphs aren't in any loaded font. Either:
 
 Fix: pass an explicit `fonts` entry covering the script, and set `fontFamily` to match its `name` exactly.
 
+## All text is blank / `measure()` returns 0×0 for text
+
+You constructed the renderer with an **empty** fonts array: `new Renderer({ fonts: [] })`. An
+empty `fonts: []` **disables the embedded default font** (Geist on Node), so every glyph has no
+font and text collapses to 0×0. Fix: **omit** the `fonts` option entirely when you have no
+custom fonts (`new Renderer()`), or only set it when the array is non-empty:
+
+```ts
+const opts = {};
+if (fonts.length) opts.fonts = fonts;     // never pass []
+const renderer = new Renderer(opts);
+```
+
+## `Cannot find module 'react/jsx-dev-runtime'`
+
+You're rendering a JSX component in standalone Bun/Node. Bun/Node compile JSX to
+`react/jsx-runtime`, so a JSX runtime must be installed: `bun add -d react` (takumi-js has no
+React *peer* dep — it just needs an element factory). The component file must also live inside
+the project tree so the runtime resolves.
+
 ## Image `src` 404s silently
 
 External images that fail to fetch render as empty space. To debug:

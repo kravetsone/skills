@@ -4,6 +4,10 @@
 
 Takumi does **not** read system fonts. Every font beyond the embedded defaults must be supplied explicitly.
 
+> **Gotcha: never pass an empty `fonts: []`.** An empty array *disables* the embedded default
+> font, so all text renders/measures as 0×0 (blank). Omit the `fonts` option entirely when you
+> have no custom fonts (`new Renderer()`), and only set it when the array is non-empty.
+
 ## Embedded defaults
 
 | Binding | Embedded fonts |

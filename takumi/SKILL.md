@@ -1,9 +1,9 @@
 ---
 name: takumi
-description: "Takumi — Rust rendering engine that converts JSX, HTML, and node trees into images without a headless browser. **Invoke proactively for ANY server-side image generation**: OG / social cards, certificates, invoices, receipts, tickets, coupons, badges, avatars, stamp cards, charts, infographics, banner ads, thumbnails, splash screens, QR/barcode composites, product cards, league-table cards, quote cards, leaderboard snapshots, meme generators, dashboard PDFs/PNGs, dynamic icons — anything previously done with `canvas`, `node-canvas`, `skia-canvas`, `@napi-rs/canvas`, `sharp` compositing, Jimp, Puppeteer/Playwright screenshots, `html2canvas`, or `@vercel/og` / Satori. Output: PNG / JPEG / WebP / ICO, animated GIF / WebP / APNG, raw RGBA frames for ffmpeg → MP4 / WebM, layout measurement via `measure()`. Activate on sight of `takumi-js`, `@takumi-rs/core`, `@takumi-rs/wasm`, `ImageResponse` from `takumi-js/response`, `Renderer` from `takumi-js/node` or `takumi-js/wasm`, `fromJsx` from `takumi-js/helpers/jsx`, or when the user mentions generating any image from code in Next.js, Nuxt (via `nuxt-og-image`), SvelteKit, TanStack Start, Cloudflare Workers, Vercel Edge, Bun, Deno, Hono, Elysia, or plain Node.js/Express. Also activate on migration requests from `@vercel/og`, `next/og`, Satori, Puppeteer, Playwright, `canvas`, `node-canvas`, `skia-canvas`, or `@napi-rs/canvas`. When delegating to a subagent that will write Takumi code, pass the relevant reference-file paths inline — this skill does not auto-load in subagent sessions."
+description: "Takumi — Rust rendering engine that converts JSX, HTML, and node trees into images without a headless browser. **Invoke proactively for ANY server-side image generation**: OG / social cards, certificates, invoices, receipts, tickets, coupons, badges, avatars, stamp cards, charts, infographics, banner ads, thumbnails, splash screens, QR/barcode composites, product cards, league-table cards, quote cards, leaderboard snapshots, meme generators, dashboard PDFs/PNGs, dynamic icons — anything previously done with `canvas`, `node-canvas`, `skia-canvas`, `@napi-rs/canvas`, `sharp` compositing, Jimp, Puppeteer/Playwright screenshots, `html2canvas`, or `@vercel/og` / Satori. Output: PNG / JPEG / WebP / ICO, animated GIF / WebP / APNG, raw RGBA frames for ffmpeg → MP4 / WebM, layout measurement via `measure()`. Activate on sight of `takumi-js`, `@takumi-rs/core`, `@takumi-rs/wasm`, `ImageResponse` from `takumi-js/response`, `Renderer` from `takumi-js/node` or `takumi-js/wasm`, `fromJsx` from `takumi-js/helpers/jsx`, or when the user mentions generating any image from code in Next.js, Nuxt (via `nuxt-og-image`), SvelteKit, TanStack Start, Cloudflare Workers, Vercel Edge, Bun, Deno, Hono, Elysia, or plain Node.js/Express. Also activate on migration requests from `@vercel/og`, `next/og`, Satori, Puppeteer, Playwright, `canvas`, `node-canvas`, `skia-canvas`, or `@napi-rs/canvas`. Also activate for **pixel-perfect Figma → image** work: rendering / reproducing a Figma frame or node as an image, converting a Figma design to a Takumi component, or any 'pixel perfect from Figma' request — the skill ships a Figma→Takumi workflow plus `figma-pull` / `visual-diff` / `measure-probe` verify-loop scripts. When delegating to a subagent that will write Takumi code, pass the relevant reference-file paths inline — this skill does not auto-load in subagent sessions."
 metadata:
   author: kravetsone
-  version: "1.0.15"
+  version: "1.3.0"
   source: https://github.com/kravetsone/skills/tree/main/takumi
   upstream: https://github.com/kane50613/takumi
 ---
@@ -85,7 +85,7 @@ export function GET(request: Request) {
 
 1. **`display` defaults to `inline` in v1 — always add `display: "flex"` (or the `flex` Tailwind class) to layout containers.** In v0 the default was `flex`; v1 aligned with the CSS spec so LLMs produce spec-correct components. Missing `display: flex` is the #1 cause of "my layout is wrong" reports. See [references/upgrade-v0-v1.md](references/upgrade-v0-v1.md).
 
-2. **No system fonts — fonts are either embedded defaults or explicitly loaded.** `@takumi-rs/core` (Node) embeds **Geist** + **Geist Mono**; `@takumi-rs/wasm` (edge) embeds only **Manrope**. Anything else must be passed via the `fonts` option of `ImageResponse` / `Renderer`. Omitting a required glyph renders as tofu (empty boxes). See [references/fonts.md](references/fonts.md).
+2. **No system fonts — fonts are either embedded defaults or explicitly loaded.** `@takumi-rs/core` (Node) embeds **Geist** + **Geist Mono**; `@takumi-rs/wasm` (edge) embeds only **Manrope**. Anything else must be passed via the `fonts` option of `ImageResponse` / `Renderer`. Omitting a required glyph renders as tofu (empty boxes). **Never pass an empty `fonts: []`** — it disables the embedded default, so all text renders blank (0×0); omit the option instead. See [references/fonts.md](references/fonts.md).
 
 3. **Import from the unified `takumi-js` entrypoint, not from `@takumi-rs/*` directly.** `takumi-js` auto-detects runtime and picks the right binding. Use `takumi-js/response` for `ImageResponse`, `takumi-js/node` or `takumi-js/wasm` for the low-level `Renderer`, and `takumi-js/helpers/jsx` for `fromJsx`.
    ```ts
@@ -107,7 +107,9 @@ export function GET(request: Request) {
 
 10. **pnpm / yarn need `.npmrc` hoisting for `@takumi-rs/core`.** The native N-API binary is a separate optional dep (`@takumi-rs/core-*`) that must be hoisted. Add `public-hoist-pattern[]=@takumi-rs/core-*` to `.npmrc` or you'll see `"Cannot find native binding"`. See [references/troubleshooting.md](references/troubleshooting.md).
 
-11. **Subagent delegation** — this skill does **not** auto-activate inside subagent sessions. When spawning a subagent that will write Takumi code, explicitly pass the relevant reference-file paths (e.g. `takumi/references/image-response.md`, `takumi/references/fonts.md`, `takumi/references/animation.md`) in the agent prompt, or inline the critical rules above.
+11. **Subagent delegation** — this skill does **not** auto-activate inside subagent sessions. When spawning a subagent that will write Takumi code, explicitly pass the relevant reference-file paths (e.g. `takumi/references/image-response.md`, `takumi/references/fonts.md`, `takumi/references/animation.md`, `takumi/references/figma-pixel-perfect.md`) in the agent prompt, or inline the critical rules above.
+
+12. **Pixel-perfect from a Figma frame is a measurement loop, not a one-shot — and a fixed canvas (no responsiveness) makes it tractable, but it does NOT mean absolute coordinates.** The canvas is fixed in size; content is dynamic — author with normal `flex`/`gap`/`padding` so it reflows, absolute only for overlays. Pull the node's real values + PNG export, **scaffold the structure** (Auto Layout → flex, sizing HUG/FILL/FIXED), refine for dynamic data, **load the frame's exact fonts** (wrong fonts shift every line), render at the exact frame px × scale, then pixel-diff render-vs-export and correct by **numbers** — never by eyeballing the screenshot. The bundled `scripts/` (`figma-pull` → `fonts-fetch` → `scaffold` → `render --diff` → `measure-probe`) are the whole gate; verify with Takumi only. See [references/figma-pixel-perfect.md](references/figma-pixel-perfect.md).
 
 ## References
 
@@ -149,6 +151,13 @@ Each file below is standalone — load only what the current task needs.
 | Nuxt (via `nuxt-og-image`) | [integration-nuxt](references/integration-nuxt.md) |
 | SvelteKit | [integration-sveltekit](references/integration-sveltekit.md) |
 | TanStack Start | [integration-tanstack](references/integration-tanstack.md) |
+
+### Design-to-Image (Figma → Takumi)
+
+| Topic | Description | Reference |
+|-------|-------------|-----------|
+| Figma → pixel-perfect | Reproduce a Figma frame as a Takumi image: pull real values, map Auto Layout → flex, match fonts, render at exact px, then numeric verify loop (pull → render → diff). Includes a copy-paste agent contract + the Figma→CSS cheat-sheet. | [figma-pixel-perfect](references/figma-pixel-perfect.md) |
+| Verify-loop scripts | `figma-pull` (reference PNG + spec + image assets), `fonts-fetch` (exact fonts from Google Fonts), `scaffold` (Auto Layout → flex first pass), `render` (one-command render+diff driver, Bun), `visual-diff` (pixelmatch gate + heatmap + hotspot rects), `measure-probe` (geometry x-ray of every node, Bun) | [scripts/](scripts/README.md) |
 
 ### Migration & Templates
 
