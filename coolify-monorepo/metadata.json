@@ -1,0 +1,22 @@
+{
+	"version": "4.1.2",
+	"author": "kravetsone",
+	"source": "https://github.com/kravetsone/skills/tree/main/coolify-monorepo",
+	"upstream": "https://github.com/coollabsio/coolify",
+	"date": "06 Jul 2026",
+	"abstract": "Deploying and maintaining pnpm-workspace + Turborepo monorepos (apps/ + packages/) on self-hosted Coolify v4: the docker-build-context model (Base Directory IS the context; Dockerfile Location is relative to it), watch-paths glob grammar with `!` negation and last-match-wins (verified from Coolify v4.x source with file:line refs), webhook fan-out of one push to N applications, GitHub App vs deploy-key sources, build-pack tradeoffs (Dockerfile vs Nixpacks-in-maintenance vs Railpack-beta vs Docker Compose), turbo prune --docker multi-stage templates for NestJS/Bun/tsx, the four cache layers (same-SHA build skip, Docker layer cache, BuildKit GC daemon.json, Coolify automated cleanup) plus Turborepo local/remote cache, dependency-graph hygiene, a zero-downtime migration runbook, and a symptom→cause→fix troubleshooting table with Coolify issue links.",
+	"references": [
+		"https://coolify.io/docs/applications/build-packs/dockerfile",
+		"https://coolify.io/docs/applications/build-packs/nixpacks",
+		"https://coolify.io/docs/applications/build-packs/railpack",
+		"https://coolify.io/docs/applications/build-packs/docker-compose",
+		"https://coolify.io/docs/knowledge-base/server/automated-cleanup",
+		"https://github.com/coollabsio/coolify/tree/v4.x",
+		"https://turborepo.dev/llms.txt",
+		"https://turborepo.dev/docs/guides/tools/docker",
+		"https://pnpm.io/workspaces",
+		"https://github.com/coollabsio/coolify-examples",
+		"https://www.loopwerk.io/articles/2026/docker-buildkit-cache-coolify/",
+		"https://docs.github.com/en/webhooks/webhook-events-and-payloads"
+	]
+}
