@@ -143,6 +143,10 @@ const admin = new AdminJS({
                     publish: {
                         actionType: "record",
                         icon: "Send",
+                        // REQUIRED: `false` = one-click action (guard modal, no
+                        // action page). Omitting `component` renders the
+                        // "noActionComponent" error box.
+                        component: false,
                         guard: "Publish this article?",
                         isAccessible: ({ record }) => {
                             const pub = record?.params.is_published;

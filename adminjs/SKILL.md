@@ -1,10 +1,10 @@
 ---
 name: adminjs
-description: "Invoke for ANY AdminJS admin-panel work, especially the Elysia + Drizzle ORM + S3 stack — imports of `adminjs`, `adminjs-elysia`, `adminjs-drizzle` (`/pg`, `/mysql`, `/sqlite`), `@adminjs/upload`, `@adminjs/themes`, `@adminjs/design-system`; resource configuration, property visibility, custom record/resource/bulk actions, before/after hooks, `ComponentLoader` custom React dashboards/components, `BaseProvider` S3 upload providers (Bun `S3Client` or `@aws-sdk/client-s3`), multi-image resources, authentication with `DefaultAuthProvider`, JWT cookies, login flow, the `.adminjs/` bundle folder, production NODE_ENV pre-bundling, richtext link bug patch, Web API `File`/`Blob` vs formidable quirks, `record.params` snake_case + boolean-as-string traps, top-level-await Elysia mounting. Also invoke for migrations from Express/Fastify/Nest AdminJS setups to Elysia. When delegating to a subagent that writes AdminJS code, pass the specific reference files inline — this skill does not auto-load in subagent sessions."
+description: "Invoke for ANY AdminJS admin-panel work, especially the Elysia + Drizzle ORM + S3 stack — imports of `adminjs`, `adminjs-elysia`, `adminjs-drizzle` (`/pg`, `/mysql`, `/sqlite`), `@adminjs/upload`, `@adminjs/themes`, `@adminjs/design-system`; resource configuration, property visibility, custom record/resource/bulk actions, `component: false` one-click actions and the `noActionComponent` error, `guard` confirm modals, before/after hooks, `ComponentLoader` custom React dashboards/components, `BaseProvider` S3 upload providers (Bun `S3Client` or `@aws-sdk/client-s3`), multi-image resources, authentication with `DefaultAuthProvider`, JWT cookies, login flow, the `.adminjs/` bundle folder, production NODE_ENV pre-bundling, richtext link bug patch, Web API `File`/`Blob` vs formidable quirks, `record.params` snake_case + boolean-as-string traps, top-level-await Elysia mounting. Also invoke for migrations from Express/Fastify/Nest AdminJS setups to Elysia. When delegating to a subagent that writes AdminJS code, pass the specific reference files inline — this skill does not auto-load in subagent sessions."
 allowed-tools: Bash(node *scripts/scaffold-resource.mjs*), Bash(node *scripts/doctor.mjs*), Bash(node *scripts/bundle-check.mjs*)
 metadata:
   author: kravetsone
-  version: "2026.4.22"
+  version: "2026.8.13"
   stack: "adminjs@^7 + adminjs-elysia@^0.1 + adminjs-drizzle@^0.1 + @adminjs/upload@^4 + elysia@^1.3"
 ---
 
@@ -22,7 +22,7 @@ AdminJS is an auto-generated admin panel. This skill wires it to the modern **Bu
 - Writing custom React components for AdminJS (dashboard redirect, action modals, form widgets)
 - Adding `before` / `after` action hooks (auto-generate summaries, force sort, audit)
 - Plugging in authentication (`DefaultAuthProvider`, custom `BaseAuthProvider`, JWT cookies)
-- Diagnosing: blank page after login, file-upload saves `[object Object]`, booleans coming in as `"true"`, login loop, production bundle missing, richtext links silently stripped
+- Diagnosing: blank page after login, `noActionComponent` red box on a custom action, `guard` confirmation never showing, file-upload saves `[object Object]`, booleans coming in as `"true"`, login loop, production bundle missing, richtext links silently stripped
 - Migrating an AdminJS panel from Express/Fastify/Nest to Elysia
 
 ## Quick Start (minimal)
@@ -75,7 +75,7 @@ Run from the user's project root (where `node_modules/` lives).
 | Script | Use it when |
 |--------|-------------|
 | `scripts/scaffold-resource.mjs <tableName> [--navigation Name]` | You have a Drizzle table and want a ready-to-paste AdminJS resource entry. Reads the table's columns + foreign keys from `node_modules/drizzle-orm/pg-core` metadata and emits a resource block with sensible `listProperties`, `READONLY` on `id`/`createdAt`, `HIDDEN` on raw S3 path columns, and `type: "mixed"` on JSON columns. |
-| `scripts/doctor.mjs` | The panel won't start, login loops, uploads vanish, or the `.adminjs/` bundle behaves weirdly. Diagnoses: missing peerDeps (`@elysiajs/jwt`, `node-mocks-http`), React version mismatch (`react@19` breaks AdminJS), ComponentLoader paths that don't resolve from CWD, `.adminjs/` folder freshness, richtext-link patch state, `S3_*` env vars. Prints a prioritized fix list. |
+| `scripts/doctor.mjs` | The panel won't start, login loops, uploads vanish, or the `.adminjs/` bundle behaves weirdly. Diagnoses: missing peerDeps (`@elysiajs/jwt`, `node-mocks-http`), React version mismatch (`react@19` breaks AdminJS), ComponentLoader paths that don't resolve from CWD, `.adminjs/` folder freshness, richtext-link patch state, `S3_*` env vars, and custom actions missing `component` (the `noActionComponent` red box). Prints a prioritized fix list. |
 | `scripts/bundle-check.mjs` | You suspect the custom-components bundle is stale or missing in production. Verifies `.adminjs/entry.js` and `.adminjs/bundle.js` exist, checks their mtime against `src/admin/**/*.tsx`, and tells you whether `NODE_ENV=production` will serve a stale bundle. |
 
 ```bash
@@ -173,7 +173,21 @@ Read these **once** before writing any AdminJS code. Each is a gotcha that will 
 
     See [custom-actions](references/custom-actions.md).
 
-11. **Multiple `uploadFileFeature` entries on the same resource MUST use distinct virtual property names** (`file`, `filePath`, `filesToDelete`) — otherwise the features collide and only one works. Example: a resource with both `image` and `currencyImage`:
+11. **Every custom action MUST set `component` — to a component name, or to the literal `false`.** There is no working default. `BaseActionComponent` resolves `actions[action.name]` (built-ins only: `new`/`edit`/`show`/`delete`/`list`/`bulkDelete`) then `AdminJS.UserComponents[action.component]`; a custom action name matches neither, so an omitted `component` navigates to the action route and renders a red **`noActionComponent`** box — "You have to implement action component for your Action". Two silent side-effects of the same omission: **`guard` never fires** (the confirm modal lives only on the `component === false` branch of `buildActionClickHandler`), and there's no clue in the server logs since nothing reached the handler.
+
+    ```typescript
+    publish: {
+        actionType: "record",
+        icon: "Check",
+        component: false,           // ← one-click: guard modal, then direct API call
+        guard: "Publish this idea?",
+        handler: async (_req, _res, ctx) => { /* ... */ },
+    }
+    ```
+
+    Note that `component: false` actions are called over **GET** (`call-action-api.js` uses `"get"` for everything but built-in `delete`) — so a `if (request.method !== "post") return ...` preamble, correct for component-backed actions, turns the handler into a no-op. See [custom-actions](references/custom-actions.md) → "`component` is NOT optional".
+
+12. **Multiple `uploadFileFeature` entries on the same resource MUST use distinct virtual property names** (`file`, `filePath`, `filesToDelete`) — otherwise the features collide and only one works. Example: a resource with both `image` and `currencyImage`:
 
     ```typescript
     uploadFileFeature({ /*...*/ properties: {
@@ -188,13 +202,13 @@ Read these **once** before writing any AdminJS code. Each is a gotcha that will 
 
     See [s3-uploads](references/s3-uploads.md) → "Multiple upload features per resource".
 
-12. **Production MUST pre-bundle with `@adminjs/bundler` + `ADMIN_JS_SKIP_BUNDLE="true"` (STRING, not boolean).** Default behavior — bundling on server startup — delays first request 1–3s, burns 200–500 MB RAM (can OOM small containers), writes to `.adminjs/` (breaks read-only FS). The official `@adminjs/bundler` runs once in CI, outputs to a static folder, and the server serves it with zero runtime bundling. **The skip env var is a string `"true"`** — AdminJS does `=== "true"`; a boolean `true` or the string `"True"` is silently ignored. See [production-bundling](references/production-bundling.md) and [templates/bundle.ts](templates/bundle.ts).
+13. **Production MUST pre-bundle with `@adminjs/bundler` + `ADMIN_JS_SKIP_BUNDLE="true"` (STRING, not boolean).** Default behavior — bundling on server startup — delays first request 1–3s, burns 200–500 MB RAM (can OOM small containers), writes to `.adminjs/` (breaks read-only FS). The official `@adminjs/bundler` runs once in CI, outputs to a static folder, and the server serves it with zero runtime bundling. **The skip env var is a string `"true"`** — AdminJS does `=== "true"`; a boolean `true` or the string `"True"` is silently ignored. See [production-bundling](references/production-bundling.md) and [templates/bundle.ts](templates/bundle.ts).
 
-13. **Never call `require("@adminjs/upload")` from TypeScript without a guard.** The user's reference code does `require("@adminjs/upload").LocalProvider` to load the local-dev provider lazily — this works under Bun but throws under strict ESM Node setups. Prefer a top-level dynamic `import()` or conditional inside an `async` function. See [s3-uploads](references/s3-uploads.md) → "Dev fallback pattern".
+14. **Never call `require("@adminjs/upload")` from TypeScript without a guard.** The user's reference code does `require("@adminjs/upload").LocalProvider` to load the local-dev provider lazily — this works under Bun but throws under strict ESM Node setups. Prefer a top-level dynamic `import()` or conditional inside an `async` function. See [s3-uploads](references/s3-uploads.md) → "Dev fallback pattern".
 
-14. **`features: [uploadFileFeature(...)]` runs AFTER `options.properties` overrides — so hide the raw `_path` / `_mimeType` columns via `HIDDEN`, and *do not* define `file` / `filePath` in `properties`** (they're virtual). If you see two columns for the same file, you've duplicated.
+15. **`features: [uploadFileFeature(...)]` runs AFTER `options.properties` overrides — so hide the raw `_path` / `_mimeType` columns via `HIDDEN`, and *do not* define `file` / `filePath` in `properties`** (they're virtual). If you see two columns for the same file, you've duplicated.
 
-15. **Subagent delegation** — when spawning an agent that writes AdminJS code, explicitly pass the relevant reference paths in the prompt (e.g. `skills/adminjs/references/s3-uploads.md`, `skills/adminjs/references/custom-actions.md`) or inline the key rules. This skill does not auto-activate inside subagents.
+16. **Subagent delegation** — when spawning an agent that writes AdminJS code, explicitly pass the relevant reference paths in the prompt (e.g. `skills/adminjs/references/s3-uploads.md`, `skills/adminjs/references/custom-actions.md`) or inline the key rules. This skill does not auto-activate inside subagents.
 
 ## Tip — In-panel help page from a markdown file
 
@@ -267,6 +281,8 @@ Use them as `properties: { id: READONLY, internalNotes: HIDDEN, termsAcceptedAt:
 
 ## Red Flags — stop and reconsider if...
 
+- You wrote a custom action with `guard` but no `component` → the click renders the `noActionComponent` red box and the guard modal never appears. Add `component: false`.
+- You flipped an action to `component: false` but kept `if (request.method !== "post") return ...` → those actions are called over GET; the handler now silently does nothing.
 - You're using `provider: { aws: {...} }` or `{ gcp: {...} }` inside `uploadFileFeature` while on Elysia → will fail silently, write a `BaseProvider` subclass instead.
 - You wrote `new Elysia().use(buildRouter(admin, {}))` **without `await`** → router is a Promise, nothing is mounted.
 - You have `react@19` / `react-dom@19` installed → AdminJS UI will hook-crash at runtime.

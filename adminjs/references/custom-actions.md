@@ -12,15 +12,51 @@ AdminJS actions are the extension point for everything beyond CRUD — exports, 
 
 Default built-in actions: `list`, `show`, `new`, `edit`, `delete`, `bulkDelete`. You can **override** these by declaring them under `options.actions` — same key, extended config.
 
+## `component` is NOT optional — pick one of two modes
+
+**Every custom action must set `component` to either a component name or the literal `false`.** Leaving it undefined is the single most common way to break a custom action, and the failure is a red box reading *"You have to implement action component for your Action / See: the documentation"*.
+
+Why — from `adminjs/lib/frontend/components/app/base-action-component.js`:
+
+```javascript
+let Action = actions[action.name];             // built-ins only: new/edit/show/delete/list/bulkDelete
+if (action.component) Action = AdminJS.UserComponents[action.component];
+if (Action) return <Action ... />;
+return <MessageBox variant="danger">{translateMessage('noActionComponent')} ...
+```
+
+A custom action name never matches a built-in, so with `component` undefined there is nothing to render — and the click handler navigated you to the action's own route to render exactly that nothing.
+
+| Mode | Config | Click behaviour |
+|---|---|---|
+| **Custom view** | `component: Components.MyModal` | Navigates to `/admin/resources/:r/records/:id/:action`, renders your React component. Your component POSTs to the action API itself. |
+| **Immediate** | `component: false` | No navigation. If `guard` is set → confirm modal, then calls the action API directly; otherwise calls it straight away. Response `notice` / `record` / `redirectUrl` are applied in place. |
+| **Broken** | *(omitted)* | Navigates to the action route → `noActionComponent` red box. `guard` never fires either. |
+
+Use **Immediate** for one-click state transitions (publish, approve, mark-processed, retry). Use **Custom view** only when the action needs input (a reason, an amount, a file).
+
+### `component: false` calls the action over **GET**
+
+From `call-action-api.js` the method is `"get"` for every action except the built-in `delete`. So this very common handler preamble — correct for a `Custom view` action, whose component POSTs — **silently no-ops** the moment you switch to `component: false`:
+
+```typescript
+// ❌ with component: false this returns early every time, nothing happens
+if (request.method !== "post") {
+    return { record: context.record.toJSON(context.currentAdmin) };
+}
+```
+
+Immediate actions have no form, so drop the method check entirely and let `guard` + `isAccessible` be the gate.
+
 ## Record action skeleton
 
 ```typescript
 {
     actionType: "record",
     icon: "Send",                              // Feather icon name
-    guard: "Are you sure you want to send this broadcast?", // confirmation dialog
+    component: false,                          // REQUIRED — `false` or a component name
+    guard: "Are you sure you want to send this broadcast?", // confirm modal (needs component: false)
     isAccessible: ({ record, currentAdmin }) => boolean,    // visible-per-record logic
-    component: Components.SomeModal,           // optional — opens a custom React view
     handler: async (request, response, context) => {
         // context.record, context.currentAdmin, context.resource, context._admin, context.h
         // ...side effects...
@@ -53,6 +89,19 @@ The frontend re-renders the record with the returned `record`, then navigates if
 For `resource` actions, return `{ records: BaseRecord[] }` instead of `record`.
 For `bulk` actions, same — return `records`.
 
+### Prefer omitting `redirectUrl` on `component: false` actions
+
+Two behaviours in the frontend make a hand-written `redirectUrl` actively worse than none:
+
+- `record-in-list.js` merges the returned record into the row **only when `redirectUrl` is absent** (`if (actionResponse.record && !actionResponse.redirectUrl)`). Set it, and you trade a free in-place update for a full refetch.
+- `use-action-response-handler.js` skips the navigation when `location.pathname === data.redirectUrl`. Point it at the record's own show page and the action becomes a no-op *from* that show page — status stays stale until the operator reloads.
+
+Hand-built URLs are also brittle: they hardcode `rootPath` and the resource id (which the Drizzle adapter derives from the **snake_case table name**, e.g. `invoice_requests`). If you genuinely need a redirect, build it via `context.h`:
+
+```typescript
+redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+```
+
 ## Example: "send broadcast" record action
 
 Pulled from production. Uses `isAccessible` to hide the button once sent, `guard` for confirmation, and `notice` for feedback:
@@ -62,6 +111,7 @@ actions: {
     send: {
         actionType: "record",
         icon: "Send",
+        component: false,   // one-click action — no action page, guard modal instead
         guard: "Are you sure you want to send this broadcast?",
         isAccessible: ({ record }: { record: { params: Record<string, unknown> } }) => {
             const isStarted =
@@ -99,8 +149,10 @@ actions: {
 
 Key points:
 
+- **`component: false` is what makes this a one-click action.** Drop it and you get the `noActionComponent` red box, plus the `guard` confirmation silently disappears.
 - **`isAccessible` uses raw `record.params` with snake_case keys** — that's the snake_case quirk from [drizzle-adapter](drizzle-adapter.md). Always normalize booleans as `x === true || x === "true"`.
-- **The try/catch is mandatory** — an unhandled throw in a record handler leaves the UI spinning with no feedback. Catch everything and translate to a `notice.error`.
+- **The try/catch is mandatory** — an unhandled throw in a record handler leaves the UI spinning with no feedback. Catch everything and translate to a `notice.error`. This includes "lost the race" branches: if a guarded `UPDATE ... WHERE status = 'pending'` matches 0 rows, return a `notice.error`, don't `throw`.
+- **Mutate `context.record.params` with the fresh row before returning.** `Object.assign(context.record.params, updated)` (from a Drizzle `.returning()`) makes the list row and show page reflect the new state immediately — otherwise the UI keeps showing the pre-action values and the button stays visible until a manual reload.
 - **`Number(context.record.params.id)`** — ids arrive as strings in action handlers; coerce.
 
 ## Example: CSV upload via a custom component + record action
@@ -260,10 +312,26 @@ Use for: auto-computed fields (summaries, slugs, embeddings), cache invalidation
 ## `guard` — confirmation dialogs
 
 ```typescript
-{ guard: "This will permanently delete all related records. Continue?" }
+{
+    component: false,   // ← without this, `guard` is dead config
+    guard: "This will permanently delete all related records. Continue?",
+}
 ```
 
-Shown as a browser `confirm()` before the handler runs. For `isAccessible` + `guard` combo: `isAccessible` hides the button when not applicable, `guard` warns when it is. Don't use `guard` alone for destructive operations that are always visible — users get desensitized.
+Rendered as an AdminJS confirm **modal** (`openModal`, `variant: "danger"`) — not a browser `confirm()`. It runs before the API call, and only along the `component: false` branch of `buildActionClickHandler`:
+
+```javascript
+if (actionHasDisabledComponent(action)) {   // === component === false
+    if (action.guard) { openModal({ ..., confirmAction: callApi }); return; }
+    callApi();
+    return;
+}
+// otherwise: navigate to the action route — guard is ignored entirely
+```
+
+So on an action with a custom `component`, `guard` is silently dead — put the confirmation inside your component instead.
+
+For `isAccessible` + `guard` combo: `isAccessible` hides the button when not applicable, `guard` warns when it is. Don't use `guard` alone for destructive operations that are always visible — users get desensitized.
 
 ## `isAccessible` — conditional visibility
 

@@ -235,6 +235,36 @@ return {
 };
 ```
 
+### Symptom: clicking a custom action opens a page with a red box "You have to implement action component for your Action / See: the documentation"
+
+**Cause:** the action has no `component`. `BaseActionComponent` looks up `actions[action.name]` (built-ins only) then `AdminJS.UserComponents[action.component]`; a custom action matches neither, so it renders the `noActionComponent` message — and `buildActionClickHandler` navigated you to the action route to show it.
+
+**Fix:** every custom action needs `component` set explicitly — `false` for one-click actions, a component name for ones that need input:
+
+```typescript
+markProcessed: {
+    actionType: "record",
+    component: false,   // ← no action page: guard modal, then direct API call
+    guard: "Mark this invoice as paid?",
+    handler: async (_req, _res, context) => { /* ... */ },
+}
+```
+
+**Related:** the same omission silently kills `guard` — the confirm modal only exists on the `component === false` branch. If your "are you sure?" dialog never appeared, this is why. And when you *do* flip an action to `component: false`, delete any `if (request.method !== "post") return ...` preamble: immediate actions are called over **GET**, so that check makes the handler a no-op. See [custom-actions](custom-actions.md#component-is-not-optional--pick-one-of-two-modes).
+
+### Symptom: custom action succeeds but the row/show page still shows the old values
+
+**Cause:** the handler returned `context.record.toJSON(...)` without updating `record.params`, so the "fresh" record is the pre-action snapshot. Often paired with a hand-written `redirectUrl` that suppresses the frontend's in-place row merge (`record-in-list.js` merges only when `redirectUrl` is absent) or that equals the current pathname (no navigation, no refetch).
+
+**Fix:** mutate `record.params` from the update's `.returning()` row and drop the `redirectUrl`:
+
+```typescript
+const [updated] = await db.update(table).set({ status: "published" })
+    .where(eq(table.id, record.params.id)).returning();
+if (updated) Object.assign(record.params, updated);
+return { record: record.toJSON(currentAdmin), notice: { message: "Published", type: "success" } };
+```
+
 ### Symptom: dropdown for a foreign-key column is empty
 
 **Cause:** the referenced table isn't registered as an AdminJS resource.

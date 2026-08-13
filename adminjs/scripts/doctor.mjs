@@ -13,11 +13,12 @@
  *   5. Richtext link patch applied
  *   6. .adminjs/ bundle folder state
  *   7. S3_* env vars in .env / .env.example
+ *   8. Custom actions declaring `component` (missing → "noActionComponent" box)
  *
  * Output: prioritized fix list, exit 0 on clean, 1 on issues.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 const CWD = process.cwd();
@@ -167,6 +168,104 @@ if (existsSync(EXAMPLE_ENV)) {
     } else {
         ok.push(`.env.example: all keys present`);
     }
+}
+
+// ─── 9. Custom actions missing `component` ─────────────────────────────────
+// A custom action without `component` renders the "noActionComponent" red box
+// (BaseActionComponent finds neither a built-in nor a UserComponent) and its
+// `guard` never fires. Heuristic source scan — brace-matched, string-naive.
+const BUILT_IN_ACTIONS = new Set(["list", "show", "new", "edit", "delete", "bulkDelete"]);
+
+function collectSources(dir, acc = [], depth = 0) {
+    if (depth > 8 || !existsSync(dir)) return acc;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+        const full = resolve(dir, entry.name);
+        if (entry.isDirectory()) collectSources(full, acc, depth + 1);
+        else if (/\.(ts|tsx|js|jsx|mts|mjs)$/.test(entry.name)) acc.push(full);
+    }
+    return acc;
+}
+
+/** Index of the `{` opening the object literal that contains `from`. */
+function enclosingObjectStart(src, from) {
+    let depth = 0;
+    for (let i = from; i >= 0; i--) {
+        const c = src[i];
+        if (c === "}") depth++;
+        else if (c === "{") {
+            if (depth === 0) return i;
+            depth--;
+        }
+    }
+    return -1;
+}
+
+/** Index just past the `}` closing the object opened at `start`. */
+function objectEnd(src, start) {
+    let depth = 0;
+    for (let i = start; i < src.length; i++) {
+        const c = src[i];
+        if (c === "{") depth++;
+        else if (c === "}" && --depth === 0) return i + 1;
+    }
+    return src.length;
+}
+
+const brokenActions = [];
+const getWithPostGuard = [];
+
+for (const file of collectSources(resolve(CWD, "src")).concat(
+    existsSync(resolve(CWD, "src")) ? [] : collectSources(CWD),
+)) {
+    let src;
+    try { src = readFileSync(file, "utf8"); } catch { continue; }
+    if (!src.includes("actionType")) continue;
+
+    const rel = file.slice(CWD.length + 1);
+    for (const m of src.matchAll(/\bactionType\s*:\s*["'](record|resource|bulk)["']/g)) {
+        const start = enclosingObjectStart(src, m.index);
+        if (start === -1) continue;
+        const body = src.slice(start, objectEnd(src, start));
+
+        // Action key: the `name:` / `"name":` immediately preceding the `{`.
+        const keyMatch = src.slice(Math.max(0, start - 120), start).match(/([\w$]+|["'][^"']+["'])\s*:\s*$/);
+        const name = keyMatch ? keyMatch[1].replace(/["']/g, "") : "<anonymous>";
+        if (BUILT_IN_ACTIONS.has(name)) continue;
+
+        const line = src.slice(0, m.index).split("\n").length;
+        if (!/\bcomponent\s*:/.test(body)) {
+            brokenActions.push({ rel, line, name, hasGuard: /\bguard\s*:/.test(body) });
+        } else if (
+            /\bcomponent\s*:\s*false\b/.test(body) &&
+            /request\.method\s*!==\s*["']post["']/.test(body)
+        ) {
+            getWithPostGuard.push({ rel, line, name });
+        }
+    }
+}
+
+if (brokenActions.length) {
+    issues.push(
+        `${brokenActions.length} custom action(s) missing \`component\` — these render the\n` +
+        `  "noActionComponent" red box on click, and any \`guard\` on them never fires:\n` +
+        brokenActions
+            .map((a) => `    ${a.rel}:${a.line}  ${a.name}${a.hasGuard ? "  (has guard — definitely broken)" : ""}`)
+            .join("\n") +
+        `\n  Fix: add \`component: false\` for one-click actions, or \`component: <name>\`\n` +
+        `       for ones that need a form. See references/custom-actions.md.`,
+    );
+} else {
+    ok.push(`custom actions: all declare \`component\``);
+}
+
+if (getWithPostGuard.length) {
+    warnings.push(
+        `${getWithPostGuard.length} action(s) combine \`component: false\` with a \`request.method !== "post"\`\n` +
+        `  early return. Immediate actions are called over GET, so the handler never runs:\n` +
+        getWithPostGuard.map((a) => `    ${a.rel}:${a.line}  ${a.name}`).join("\n") +
+        `\n  Fix: drop the method check — there is no form to POST.`,
+    );
 }
 
 // ─── Report ────────────────────────────────────────────────────────────────
