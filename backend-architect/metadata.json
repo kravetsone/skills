@@ -1,0 +1,24 @@
+{
+	"version": "0.1.0",
+	"author": "kravetsone",
+	"source": "https://github.com/kravetsone/skills/tree/main/backend-architect",
+	"upstream": "https://github.com/kravetsone/taskora",
+	"date": "21 Sep 2026",
+	"abstract": "Turns a product spec (Google Docs / Notion / PDF ТЗ) plus a Figma file into a senior-level backend plan: API contract, data model, race-condition register, analytics event spec, and a sequenced backlog. Runs a staged pipeline with deliberate model tiering — a script reduces Figma to a digest, a cheap model builds the requirement and screen ledgers, and an expensive model does only the architecture — separated by two human gates (facts, then architectural decisions). Opinionated monolith stack: Bun + Elysia + Drizzle + PostgreSQL + Redis, GramIO for Telegram bots, @verrou/core for locks, env-var for configuration, taskora for jobs/schedules/flow-control, OpenTelemetry through @elysiajs/opentelemetry, PostHog for product analytics, bun:test + PGlite for tests. Treats concurrency as a first-class deliverable: a hotspot register where every entry must be closed by a database-level mechanism (conditional UPDATE, FOR UPDATE SKIP LOCKED, unique-constraint idempotency, outbox/inbox) because Verrou locks carry no fencing token and cannot by themselves hold an invariant. Ships 7 zero-dependency Node scripts (plan-init, docs-pull, figma-digest, merge-facts, hotspot-scan, plan-lint, coverage-report), a 12-group anti-pattern linter distilled from two real production services, corrected paste-ready templates for every pattern it recommends, and a platform contract that pins the exact environment-variable names a GitLab CI + ArgoCD + sealed-secrets deployment injects.",
+	"references": [
+		"https://verrou.dev/",
+		"https://github.com/Julien-R44/verrou",
+		"https://github.com/kravetsone/taskora/tree/main/documentation/skills",
+		"https://github.com/evanshortiss/env-var",
+		"https://elysiajs.com/llms-full.txt",
+		"https://gramio.dev/llms-full.txt",
+		"https://orm.drizzle.team/llms-full.txt",
+		"https://github.com/figma/rest-api-spec",
+		"https://www.figma.com/developers/api",
+		"https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Dev-Mode-MCP-Server",
+		"https://opentelemetry.io/docs/languages/js/",
+		"https://posthog.com/docs/libraries/node",
+		"https://www.postgresql.org/docs/current/explicit-locking.html",
+		"https://www.postgresql.org/docs/current/transaction-iso.html"
+	]
+}
