@@ -1,0 +1,161 @@
+# Target contract — what the frontend builds against before the backend exists.
+# Not the runtime spec: Elysia generates that from the route schemas. This one
+# is written at planning time and is the reason the frontend is not blocked.
+#
+# Every operation names the requirement it implements, and every error variant
+# appears in the response map. An endpoint whose failure modes are not declared
+# has failure modes the frontend cannot handle.
+openapi: 3.1.0
+
+info:
+  title: <project> API
+  version: 0.1.0
+  description: |
+    Target contract derived from <ТЗ> and <Figma file>.
+    Status: draft, produced at planning time. Source of truth: docs/backend-plan.md.
+
+servers:
+  - url: https://{domain}
+    variables:
+      domain:
+        default: example.ru
+
+tags:
+  - name: health
+  - name: <domain>
+
+components:
+  securitySchemes:
+    initData:
+      type: apiKey
+      in: header
+      name: x-init-data
+      description: Telegram Mini App init data, HMAC-validated against the bot token.
+
+  schemas:
+    ErrorCode:
+      type: string
+      description: Machine-readable code. Clients switch on this, never on prose.
+      enum: [UNAUTHORIZED, FORBIDDEN, NOT_FOUND, OUT_OF_STOCK, INSUFFICIENT_BALANCE, ALREADY_CLAIMED, IN_PROGRESS, RATE_LIMITED]
+
+    Paginated:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {}
+        total:
+          type: integer
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Bounded in the schema. An unbounded limit is a denial-of-service endpoint with good intentions.
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+security:
+  - initData: []
+
+paths:
+  /health:
+    get:
+      operationId: health
+      tags: [health]
+      security: []
+      summary: Liveness probe
+      description: |
+        Called constantly by the ingress (HTTP_HEALTH_CHECK). Touches no
+        dependency and is excluded from tracing.
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  /<resource>:
+    get:
+      operationId: list<Resource>
+      tags: [<domain>]
+      summary: <one line>
+      description: Implements REQ-###. Screen SCR-###.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Paginated"
+        "401":
+          description: credentials absent, invalid or expired
+          content:
+            application/json:
+              schema:
+                type: string
+                enum: [UNAUTHORIZED]
+
+  /<resource>/{id}/<action>:
+    post:
+      operationId: <action><Resource>
+      tags: [<domain>]
+      summary: <one line>
+      description: |
+        Implements REQ-###. Concurrency: H-### — the result is returned in this
+        same response rather than by a follow-up fetch, because the claim and
+        the read must not be separated.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: done
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: precondition violated
+          content:
+            application/json:
+              schema:
+                type: string
+                enum: [INSUFFICIENT_BALANCE]
+        "403":
+          description: known caller, not allowed
+          content:
+            application/json:
+              schema:
+                type: string
+                enum: [FORBIDDEN]
+        "409":
+          description: |
+            State conflict — you were right when you asked and wrong by the time
+            we answered. This is where race-condition outcomes land.
+          content:
+            application/json:
+              schema:
+                type: string
+                enum: [OUT_OF_STOCK, ALREADY_CLAIMED, IN_PROGRESS]
